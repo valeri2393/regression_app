@@ -1,58 +1,44 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-from sklearn.linear_model import LinearRegression
 import matplotlib.pyplot as plt
-import seaborn as sns
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import StandardScaler
 
-def main():
-    st.title("Линейная Регрессия")
+st.title("Логистическая регрессия и визуализация данных")
 
-    # Загрузка файла .csv
-    uploaded_file = st.file_uploader("Загрузите файл .csv", type=['csv'])
-    if uploaded_file is not None:
-        # Чтение данных из файла
-        data = pd.read_csv(uploaded_file)
+uploaded_file = st.file_uploader("Загрузите файл .csv", type="csv")
 
-        # Вывод первых нескольких строк данных
-        st.subheader('Yесколько строк данных:')
-        st.write(data.head())
+if uploaded_file is not None:
+    df = pd.read_csv(uploaded_file)
+    st.write("Пример данных:")
+    st.write(df.head())
 
-        # Преобразование категориальных переменных
-        categorical_columns = data.select_dtypes(include=['object', 'category']).columns
-        data = pd.get_dummies(data, columns=categorical_columns, drop_first=True)
+    target_column = st.selectbox("Выберите колонку с целевой переменной", df.columns)
+    feature_columns = st.multiselect("Выберите колонки с признаками", [col for col in df.columns if col != target_column])
 
-        # Выбор признаков и целевой переменной
-        st.sidebar.header("Настройки регрессии")
-        features = st.sidebar.multiselect("Выберите признаки для регрессии:", data.columns)
-        target = st.sidebar.selectbox("Выберите целевую переменную:", data.columns)
+    if target_column and feature_columns:
+        X = df[feature_columns]
+        y = df[target_column]
 
-        # Регрессия
-        if st.sidebar.button("Выполнить регрессию"):
-            if len(features) == 0:
-                st.sidebar.error("Выберите хотя бы один признак.")
-            else:
-                X = data[features]
-                y = data[target]
-                model = LinearRegression()
-                model.fit(X, y)
-                coefficients = dict(zip(features, model.coef_))
-                coefficients['Intercept'] = model.intercept_
-                st.subheader("Результат регрессии:")
-                st.json(coefficients)
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
 
-        # Scatter plot
-        st.sidebar.header("Настройки Scatter Plot")
-        scatter_cols = st.sidebar.multiselect("Выберите два признака для построения Scatter Plot:", data.columns)
-        point_size = st.sidebar.slider("Выберите размер точек:", 10, 200, 50)
-        if len(scatter_cols) == 2:
-            if st.sidebar.button("Построить Scatter Plot"):
-                fig, ax = plt.subplots(figsize=(10, 6))
-                scatter = ax.scatter(data[scatter_cols[0]], data[scatter_cols[1]], c=data[target], s=point_size, alpha=0.6, linewidth=0.5)
-                ax.set_xlabel(scatter_cols[0])
-                ax.set_ylabel(scatter_cols[1])
-                ax.set_title("Scatter Plot")
-                st.pyplot(fig)
+        model = LogisticRegression()
+        model.fit(X_scaled, y)
 
-if __name__ == "__main__":
-    main()
+        coef_dict = {feature: coef for feature, coef in zip(feature_columns, model.coef_[0])}
+        st.write("Вес признаков (коэффициенты логистической регрессии):")
+        st.write(coef_dict)
+
+        st.write("Построение scatter plot")
+        scatter_x = st.selectbox("Выберите X для scatter plot", feature_columns)
+        scatter_y = st.selectbox("Выберите Y для scatter plot", feature_columns)
+
+        if scatter_x and scatter_y:
+            fig, ax = plt.subplots()
+            scatter = ax.scatter(df[scatter_x], df[scatter_y], c=df[target_column], cmap='viridis')
+            legend = ax.legend(*scatter.legend_elements(), title=target_column)
+            ax.add_artist(legend)
+            plt.xlabel(scatter_x)
+            plt.ylabel(scatter_y)
+            st.pyplot(fig)
